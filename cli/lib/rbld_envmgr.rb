@@ -70,6 +70,7 @@ module Rebuild
     ENV_NAME_SEPARATOR = ':'
     MODIFIED_PREFIX='re-build-env-dirty-'
     MODIFIED_SEPARATOR='-rebuild-tag-'
+    RBLD_OBJ_FILTER={:label => ["re-build-environment=true"] }
 
     private_constant :ENV_LABEL
     private_constant :ENV_NAME_PREFIX
@@ -77,6 +78,7 @@ module Rebuild
     private_constant :ENV_NAME_SEPARATOR
     private_constant :MODIFIED_PREFIX
     private_constant :MODIFIED_SEPARATOR
+    private_constant :RBLD_OBJ_FILTER
 
     def add_environment( tag, api_obj )
       if match = tag.match(/^#{ENV_NAME_PREFIX}(.*)#{ENV_NAME_SEPARATOR}(.*)/)
@@ -94,30 +96,29 @@ module Rebuild
       "#{ENV_NAME_PREFIX}#{env.name}#{ENV_NAME_SEPARATOR}#{env.tag}"
     end
 
-    def is_rebuild_object( object )
-      labels = object.info['Labels']
-      labels && labels[ENV_LABEL] == 'true'
+    def rbld_images(filters = nil)
+      filters = RBLD_OBJ_FILTER.merge( filters || {} )
+      Docker::Image.all( :filters => filters.to_json )
+    end
+
+    def rbld_containers(filters = nil)
+      filters = RBLD_OBJ_FILTER.merge( filters || {} )
+      Docker::Container.all( :all => true, :filters => filters.to_json )
     end
 
     def refresh_all_environments!
       @all = []
-      Docker::Image.all.each do |img|
+      rbld_images.each do |img|
         rbld_log.debug("Found docker image #{img}")
-
-        if is_rebuild_object( img )
-          img.info['RepoTags'].each { |tag| add_environment( tag, img ) }
-        end
+        img.info['RepoTags'].each { |tag| add_environment( tag, img ) }
       end
     end
 
     def refresh_modified_environments!
       @modified = []
-      Docker::Container.all( :all => true ).each do |cont|
+      rbld_containers.each do |cont|
         rbld_log.debug("Found docker container #{cont}")
-
-        if is_rebuild_object( cont )
-          cont.info['Names'].each { |name| add_modified_environment( name, cont ) }
-        end
+        cont.info['Names'].each { |name| add_modified_environment( name, cont ) }
       end
     end
 
