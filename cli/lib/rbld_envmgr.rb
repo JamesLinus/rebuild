@@ -9,7 +9,6 @@ module Rebuild
     ENV_NAME_SEPARATOR = ':'
     private_constant :ENV_NAME_SEPARATOR
     INITIAL_TAG_NAME = 'initial'
-    private_constant :INITIAL_TAG_NAME
 
     private
 
@@ -94,6 +93,12 @@ module Rebuild
 
     def self.internal_env_name( env )
       "#{ENV_NAME_PREFIX}#{env.name}#{ENV_NAME_SEPARATOR}#{env.tag}"
+    end
+
+    def self.internal_rerun_env_name(name, tag)
+      "#{ENV_RERUN_NAME_PREFIX}#{name}" \
+      "#{MODIFIED_SEPARATOR}#{tag}" \
+      ":#{Environment::INITIAL_TAG_NAME}"
     end
 
     def rbld_images(filters = nil)
@@ -185,6 +190,21 @@ module Rebuild
         @all.delete_at( idx )
       else
         raise "Unknown environment #{fullname}"
+      end
+    end
+
+    def checkout!(fullname, name, tag)
+      raise "Unknown environment #{fullname}" unless @all.include? fullname
+
+      if idx = @modified.index( fullname )
+        rbld_log.info("Removing container #{@modified[idx].api_obj.info}")
+        @modified[idx].api_obj.delete( :force => true )
+      end
+
+      int_name = self.class.internal_rerun_env_name( name, tag )
+      Docker::Image.all( :filter => int_name ).each do |img|
+        rbld_log.info("Removing image #{int_name}")
+        img.remove( :name => int_name )
       end
     end
 
